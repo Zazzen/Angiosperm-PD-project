@@ -1,19 +1,20 @@
 #Script 5
 
-#This is a small script to cross info from the background tree and the politomous tree, to verify if the data
+#This is a small script to cross info from the background tree and the politomous tree, to verify if the data is correct
+ #it also excludes tips that were created to ajust the infrastructure for the tip adding (such as family_2 tips)
 
 library("ape")
 library("stringr")
 
-base_tree <- read.nexus("arvore_trimmed") #it must be the trimmed tree, since I need the family names in order to check the data
-final_tree <- read.tree("dead_tree_clean_equalized_names_fixed")
+base_tree <- read.tree("arvore_trimmed") #it must be the trimmed tree, since I need the family names in order to check the data
+final_tree <- read.tree("arvore_beta")
 familias <- unique(gsub("[0-9]","",gsub(".*_","",gsub("_2","",final_tree$tip.label)))) #family list
 
 #first I want to know if the divergence time for each family of the final tree is still the same from the base tree
-  #this can be made via regex using the newick files
+#this can be made via regex using the newick files
 
 base_tree_newick <- readLines("arvore_trimmed") #read the trees as text
-final_tree_newick <- readLines("dead_tree_clean_equalized_names_fixed")
+final_tree_newick <- readLines("arvore_beta")
 
 #next, a loop to paste the family name, the div time of the family as in the base tree and the final tree, next to each other
 
@@ -37,8 +38,27 @@ familias_ausentes <- setdiff(familias_nativas, familias)
 #loop to check species richness
 
 for (i in 1:length(familias_ausentes)){
-familia.i <- familias_ausentes[i]
-riqueza.i <- length(grep(familia.i, dados_nativas$Família))
-output <- paste(familia.i, riqueza.i, sep = ";")
-write(output, file = "dados_familias_ausentes", append = T)
+  familia.i <- familias_ausentes[i]
+  riqueza.i <- length(grep(familia.i, dados_nativas$Família))
+  output <- paste(familia.i, riqueza.i, sep = ";")
+  write(output, file = "dados_familias_ausentes", append = T)
 }
+
+
+#now, the "_2" tips and the duplicated tips must be excluded
+
+#first I mus find the tips that have the "_2"
+
+exclude_tips_2 <- grep("_2", final_tree$tip.label, value = T)
+
+final_tree <- drop.tip(final_tree, tip = exclude_tips_2)
+
+#now I must create a loop to detect and exclude dupĺicated tips
+final_tips <- final_tree$tip.label #tip name list
+exclude <- grep("TRUE",duplicated(final_tips)) #positions to exclude
+final_tree_clean <- drop.tip(final_tree, tip = exclude)
+
+#the tree now has all infraestructure tips and dupĺicates excluded. 
+  #This is the final politomous tree that should be used in the analysys
+
+write.tree(final_tree_clean, file = "final_tree_clean")
