@@ -1,0 +1,44 @@
+#Script 5
+
+#This is a small script to cross info from the background tree and the politomous tree, to verify if the data
+
+library("ape")
+library("stringr")
+
+base_tree <- read.nexus("arvore_trimmed") #it must be the trimmed tree, since I need the family names in order to check the data
+final_tree <- read.tree("dead_tree_clean_equalized_names_fixed")
+familias <- unique(gsub("[0-9]","",gsub(".*_","",gsub("_2","",final_tree$tip.label)))) #family list
+
+#first I want to know if the divergence time for each family of the final tree is still the same from the base tree
+  #this can be made via regex using the newick files
+
+base_tree_newick <- readLines("arvore_trimmed") #read the trees as text
+final_tree_newick <- readLines("dead_tree_clean_equalized_names_fixed")
+
+#next, a loop to paste the family name, the div time of the family as in the base tree and the final tree, next to each other
+
+for (i in 1:length(familias)){
+  familia.i <- familias[i]
+  print(familia.i)
+  query.i <- paste(familia.i, ":\\d+\\.\\d+", sep = "")
+  tempo_base <- as.numeric(gsub(".*\\:","",(str_extract(base_tree_newick, query.i))))
+  tempo_final <- as.numeric(gsub(".*\\:","",(str_extract(final_tree_newick, query.i))))
+  output.i <- paste(familia.i, tempo_base, tempo_final, sep = ";")
+  write(output.i, file = "time_control_trees.txt", append = T)
+}
+
+#the following code lists the families which are *not* included in the analysis and how rich they arvore_trimmed
+
+dados_nativas <- read.csv(file = "dados_reflora_nativas.csv", header = T, sep = ";", fileEncoding = "WINDOWS-1252") #required table
+
+familias_nativas <- unique(dados_nativas$Família)
+familias_ausentes <- setdiff(familias_nativas, familias)
+
+#loop to check species richness
+
+for (i in 1:length(familias_ausentes)){
+familia.i <- familias_ausentes[i]
+riqueza.i <- length(grep(familia.i, dados_nativas$Família))
+output <- paste(familia.i, riqueza.i, sep = ";")
+write(output, file = "dados_familias_ausentes", append = T)
+}

@@ -1,0 +1,83 @@
+#Script2
+
+#this script will add the family sufixes to the tree, exclude non native species and correct branches that are represented by a single species
+
+library("ape") #load the required packages
+tree <- read.nexus(file = "Arvore_datada_Magallon_etal_UCLN.nex.txt") #raw base tree
+tips_tree <- tree$tip.label #tip list
+vetor_familias <- readLines("family_check_ipt_and_tropicos.txt") #vector with the sufixes that should be added
+
+#the following loop adds the sufixes to the tip labels of the tree
+for (i in 1:length(vetor_familias)){
+  print(paste(i, "of",length(vetor_familias)))
+  especie.i <- tips_tree[i]
+  familia.i <- vetor_familias[i]
+  tree$tip.label[i] <- paste(especie.i, familia.i, sep = "_")
+  }
+
+  #the tree with the family sufixes will be backed up
+
+  write.tree(tree, file = "family_tree")
+
+#now the families that don't have any native species in Brazil will be excluded
+  #this will be done using the supplementary material avaiable from the BFG, 2015 paper.
+
+bfg <- read.csv(file = "dados_reflora_nativas.csv", header = T, sep = ";", fileEncoding = "ISO-8859-1") #read the bfg table, this is a table which contains only native species
+
+#the following loop creates a file which contains all lineages that should be excluded
+
+for (i in 1:length(vetor_familias)){ #this vector contains each tip, but only the name of the family, this means that the families are checked several times (once per tip of the family), which is not a problem
+  print(paste("Iteration", i, "of",length(vetor_familias)))
+  familia_tip.i <- gsub(".*_", "", tree$tip.label[i]) #family sufix for each tip in the iteration
+  query.i <- grep(familia_tip.i, bfg$Família)
+  if (length(query.i) >= 1){ #if the tip is native, nothing is done
+    print("Native")} else { #if it is not native, it is included in the following file
+      write(tree$tip.label[i], file = "excluir_nao_nativas.txt", append = T)
+    print("non_native")
+          }}
+
+tree_nativas <- tree #changing the tree variable name just in case...
+tips_exclude <- readLines("excluir_nao_nativas.txt") #file with the tips that should be excluded
+
+#the following loop exclude the non native tips
+
+for (i in 1:length(tips_exclude)){
+  print(i)
+  tip_exclude.i <- tips_exclude[i]
+  tree_nativas <- drop.tip(tree_nativas, tip = tip_exclude.i)
+  }
+
+write.tree(tree_nativas, file = "arvore_trimmed") #this is the "trimmed tree", which is the tree that contains solely native lineages
+
+#now a final taxonomic check will be taken. Since the base tree is a fully resolved tree, the following commands will check the existence of paraphyletic families.
+  #If a family is paraphyletic, theres a taxonomic assignment problem
+
+tree <- read.tree("arvore_trimmed") #read the trimmed tree
+familias <- gsub(".*_","",tree$tip.label) #create a vector with the family names
+
+#the following loop identifies the families which are paraphyletic and should be rechecked
+  #there is a simpler way of doing this using the is.monophyletic() command from ape. I didn't know that by then tho...
+
+for (i in 1:length(familias)){ #loop using the family vector
+  print(i)
+  familia.i <- familias[i]
+  query.i <- grep(familia.i, tree$tip.label)
+  for (i in 1:length(query.i)){ #query with all tips of a given family
+      if (i < length(query.i)){  #as long as the i value is lower than the total n, the script goes to the line below
+      pos.i <- query.i[i]
+        if(query.i[i] - query.i[i+1] == -1){ # as long as this value is equal to -1, the group is monophyletic
+          print("Monofiletism_OK")
+          }else{ #if the value is different from -1, the there is a problem and this path is taken
+          write(familia.i, file = "paraphyletic_family_problem.txt", append = T)} #this file contains the paraphyletic families
+          }else{next} #don't remeber why this next statement is here... it is harmless tho
+}}
+
+#execute the bellow commands only to have a file with no family repetitions and the a correspondent variable
+familias_problema_filetismo <- grep("ceae", unique(readLines("paraphyletic_family_problem.txt")), value = T)
+write(familias_problema_filetismo, file = "paraphyletic_family_problem.txt")
+
+#I have to check manually what is going on with these families
+#usually the are one or more tips of the family assigned to the wrong family or the the lineage has intrinsic taxonomic issues. gotta check the file and the trimmed_tree manually (via ui)
+  #and edit the wrong family name on the newick file of the trimmed tree
+  #some tips must be excluded manually from the tree
+  #some of the families wrongly assigned become non native families, for those, the non native exclusion loop can be rerun after the families had been assigned correctly

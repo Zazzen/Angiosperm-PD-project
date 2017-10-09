@@ -1,0 +1,121 @@
+#Script 3
+
+#After the manual family check of problematic tips from script2, rerun the non native exclusion loop
+  #this will exclude newly added non native families
+
+library("ape") #load required packages
+tree <- read.tree("arvore_trimmed") #read the tree after the manual check
+bfg <- read.csv(file = "dados_reflora_nativas.csv", header = T, sep = ";", fileEncoding = "ISO-8859-1") #read the native plants jbrj table
+vetor_familias <- gsub(".*_", "", tree$tip.label) #create new vector with the families assigned to each tip of the tree
+
+#run the exclusion loop
+for (i in 1:length(vetor_familias)){
+  familia_tip.i <- gsub(".*_", "", tree$tip.label[i])
+  query.i <- grep(familia_tip.i, bfg$Família)
+  if (length(query.i) >= 1){
+    print("Nativa")} else {
+      write(tree$tip.label[i], file = "neo_excluir_nao_nativas.txt", append = T) #the new exclusion file has a new name!
+    print("não_nativa")
+          }}
+
+tips_exclude <- readLines("neo_excluir_nao_nativas.txt") #read exclusion file
+
+#exclude non native tips
+for (i in 1:length(tips_exclude)){
+  print(i)
+  tip_exclude.i <- tips_exclude[i]
+  tree <- drop.tip(tree, tip = tip_exclude.i)
+  }
+
+#now the tree has all non native lineages excluded and all paraphyly problems solved
+
+write.tree(tree, file = "arvore_mono_fix") #this solved tree has a new name
+
+#there is one more issue that must be resolved tho
+#some families are represented by a single species. This is an issue for the addtips script, since it will add politomies at the same node of the neighbouring family in this cases
+  #this will create a node with tips from both families (sharing this single node). which is a problem
+
+#to solve this, these single species lineages must be duplicated and a new node, with a similar divergence time must be created
+
+#the following commands fix this issue
+
+familias_tree_nativas <- gsub(".*_", "", tree$tip.label) #list the families of the tree
+
+#the following works in a medieval way, but it works. It definitely can be improved...
+  #it creates a file containing  a list of how many times each family appears
+
+  for (i in 1:length(familias_tree_nativas)){
+    familia.i <- familias_tree_nativas[i]
+    query.i <- length(grep(familia.i, familias_tree_nativas))
+    nome.i <- paste(familia.i, query.i, sep = ";")
+    write(nome.i, "table_families_dump.txt", append = T)
+  }
+
+familias_table <- read.delim(file = "table_families_dump.txt", header = F, sep = ";") #read the file with the list
+
+for (i in 1:length(familias_table$V1)){
+  print(i)
+  if (familias_table$V2[i] == 1){
+  write(as.character(familias_table$V1[i]), file = "familias_unicatas_dump.txt", append = T) #another file is created with the list of families represented by single tips (medieval :/)
+  }
+}
+
+familias_unicatas <- readLines("familias_unicatas_dump.txt") #these families must be fixed
+
+tree_mono_fix <- read.tree("arvore_mono_fix") #create a copy of the tree, with another variable name. This will be used in the following loop
+write.tree(tree_mono_fix, file = "arvore_unicatas_fix") #this will also be used in the loop, this tree will be overwritten several times
+
+#the following loop adds another tip to these families, at time 0
+  #the new tip has the family name as label followed by a "_2"
+  #it saves the fixed tree with a new name
+
+library("phytools") #{phytools} required for this step
+
+
+for (i in 1:length(familias_unicatas)){
+  tree <- read.tree(file = "arvore_unicatas_fix") #cópia da arvore_trimmed
+  familia.i <- familias_unicatas[i]
+  familia_format.i <- paste("^", familia.i, "$", sep = "")
+  tip.i <- paste(familia.i, "2", sep = "_")
+  sister <- tree$tip.label[grep(familia_format.i, gsub(".*_", "", tree$tip.label, ignore.case = T))]
+  postip <- grep(sister, tree_mono_fix$tip.label)
+  length <- tree_mono_fix$edge.length[postip]
+  enforce.i <- bind.tip(tree, tip.label = tip.i, edge.length = length, where = which(tree$tip.label == as.character(sister)), position = 0)
+  write.tree(enforce.i, file = "arvore_unicatas_fix") #new tree file name
+  print(paste(i, "de", length(familias_unicatas), sep = ""))
+}
+
+#now the time of each added tip of the tree must be fixed, since they are currently set to 0
+  #the new age must be close to the previous divergence times of the families
+
+#once, more, the tree will be backed up with a new name
+tree <- read.tree("arvore_unicatas_fix")
+write.tree(tree, file = "arvore_beta")
+library("phangorn") #package required for this step
+
+#the following loop fixes the ages of the lineages
+  #a different, mas statistically similar branching time is set for the newly created nodes
+
+  for (i in 1:length(familias_unicatas)){ #using as parameter the list with the single represented families
+    tree <- read.tree("arvore_beta") #this tree will be overwritten several times
+    familia.i <- familias_unicatas[i]
+    query <- grep(familia.i, tree$tip.label)
+    especieA <- tree$tip.label[query[1]]
+    especieB <- tree$tip.label[query[2]]
+    x <- getMRCA(tree, c(especieA, especieB))
+    y <- x-1
+    base_value <- branching.times(tree)[as.character(y)]
+    base_value <- base_value-0.1
+    nos_pos <- which(tree$edge[,1]==x)
+    ramos_anteriores <- which(tree$edge[,2]==x)
+    a <- which(tree$edge[,1]==x)
+    b <- which(tree$edge[,2]==x)
+    size725<-tree$edge.length[b]-((base_value)-tree$edge.length[a[1]])
+    tree$edge.length[b]<-size725
+    tree$edge.length[a[1]]<-base_value
+    tree$edge.length[a[2]]<-base_value
+    write.tree(tree, file = "arvore_beta")
+    print(i)
+  }
+
+#the tree is now ready to have the tips added

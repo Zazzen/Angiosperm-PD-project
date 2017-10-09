@@ -1,0 +1,113 @@
+#script1_log
+
+########################################################################################################################
+
+#updates a serem feitos:
+
+#tentar arrumar esquema de responder prompts automaticamente não: rolou
+
+#possivelmente mandar ele salvar os logs em outra pasta
+
+########################################################################################################################
+
+
+
+
+
+#open required packages {ape} and {taxize}
+library("ape")
+library("taxize")
+tree <- read.nexus("Arvore_datada_Magallon_etal_UCLN.nex.txt") #read base tree. In this case Magallon et al. 2015
+tips_raw <- tree$tip.label #list of tree tips
+generos_raw1 <- gsub("_.*", "", tips_raw) #list the genera from the tip list using regex
+generos_raw2 <- gsub("'", "", generos_raw1)
+
+#input the corresponding families related to each tip using the Intergrated Publishing Tool kit from the Rio de Janeiro Botanic Garden Flora 2020 project
+# use the "taxon" file avaiable at http://ipt.jbrj.gov.br/jbrj/resource?r=lista_especies_flora_brasil
+
+write("###########################  LOG FAMILY CHECK IPT ########################", file = "script1_log.txt", append = T) #log
+output.i <- paste("\n", "This file refers to the family check from the JBRJ IPT taxon file", sep = " ")
+write(output.i, file = "script1_log_ipt_check.txt", append = T) #log file creation
+reflora_ipt <- read.delim("taxon.txt", header = T) #taxon file reading
+
+#the following loop inserts the family of a given tip next to the tips name, if it is found in the taxon file, according to the tip's genus
+
+for (i in 1:length(generos_raw2)){
+  output.i <- paste("Beginning family check:", i, "of", length(generos_raw2))
+  print(output.i)
+  genero.i <- generos_raw2[i]
+  genero_regex <- paste("^", genero.i, "$", sep = "")
+  query.i <- grep(genero_regex, reflora_ipt$genus) #this line will find the genus in the taxon file
+  if (length(query.i >= 1)){ #if the genus exists
+  meta_genero.i <- reflora_ipt[query.i,] #collects metadata of the genus
+  familia.i <- as.character(unique(meta_genero.i$family)) #extracts the family. sometimes, for a reason, it finds more than one family for the genus. This is recorded in the logfile
+  output.i <- paste("##########", as.character(familia.i), sep = " ")
+  write(output.i, file = "script1_log_ipt_check.txt", append = T)
+    if (length(familia.i) > 1){
+    output.i <- paste("Position", i, "more than onde family", "--->","gênero", genero.i, sep = " ")
+    write(output.i, file = "script1_log_ipt_check.txt", append = T)
+    write(familia.i, file = "script1_log_ipt_check.txt", append = T)
+  }
+write(as.character(familia.i[1]), file = "family_check_ipt.txt", append = T) #this file contains the families of each position. If it finds more than one family, it selects only the first found "[1]"
+  print(output.i)
+  } else {
+write(genero.i, file = "family_check_ipt.txt", append = T) #if it doesnt find the family, the genus is maintained in the list
+    output.i <- paste("##########", as.character(genero.i), sep = " ")
+    write(output.i, file = "script1_log_ipt_check.txt", append = T) #log
+    print(output.i)
+}}
+write("###########################!!!!!!  END !!!!!!!! LOG FAMILY CHECK IPT ########################", file = "script1_log.txt", append = T) #log
+write("Arquivo family_check_ipt.txt gerado e pronto para uso", file = "script1_log.txt", append = T)
+
+#after the IPT taxon list has been checked, the script will look after the remaining families in the "Tropicos" database, which is part of MOBOT
+  #this is made using the {taxize} package
+
+#during this operation, when the script finds more than one option, the user has to input the desirable one (I still have to figured out how to fix this)
+  #whenever that happens, just press the "2" key
+
+#the following loop will check the tips that DID NOT have any families assigned to it, it will maintain the correctly assigned families
+
+generos_ipt_checked <- readLines("family_check_ipt.txt") #list with the tips checked from the ipt.
+
+for (i in 1:length(generos_ipt_checked)){
+  nome.i <- generos_ipt_checked[i]
+  if (length(grep("ceae", nome.i)) == 0){ #this statment indicates that the loop should only keep going if the position is not assigned to a family yet
+  print("check1")
+  genero.i <- generos_raw2[i]
+  print(i)
+  tryCatch({query.i <- classification(genero.i, db = "tropicos", rows = 3)}, error = function (e) {print("BUMP")}) #prints "BUMP" if something goes wrong with this position
+  if (exists("query.i"))
+  {
+  temp.i <- get(genero.i, query.i)
+  familia.i <- as.character(temp.i[5,1])
+  write(familia.i, file = "family_check_ipt_and_tropicos.txt", append = T) #this file contains the list with the family check from the IPT AND the
+  output.i <- paste(nome.i, familia.i, sep = " ") #this logfile shows if every tip of this new query did not have a family assigned. Just to make certain that only the tips that remain unassigned are being checked
+  write(output.i, file = "tropicalia_log2.txt", append = T)
+  print(output.i)
+  varout <- paste("Tip", i, "de", length(generos_raw2))
+  print(varout)
+  rm(query.i)
+  }else
+write("ERRO", file = "family_check_ipt_and_tropicos.txt", append = T)
+  } else write(nome.i, file = "family_check_ipt_and_tropicos.txt", append = T)
+  }
+#clean variables
+rm(list=ls(all=t))
+
+#now, the list has to manually verified, in order to check the tips that had no families assigned to  "NA" positions
+
+#to help with the process, a list will be created correlating the positions of NA's in the final list and the original list
+
+lista_final <- readLines("family_check_ipt_and_tropicos.txt") #read the final list
+
+positions_NA <- grep("NA", lista_final) #NA positions of the final list
+
+lista_inicial <- readLines("family_check_ipt.txt") #read the initial list
+
+lista_generos_NA <- paste(lista_inicial[positions_NA], positions_NA, sep = " ")
+
+write(lista_generos_NA, file = "lista_conf_manual.txt", append = T)
+
+#the file "lista_conf_manual.txt", will give the name of the genus for which the family must be found and the position of the NA in the final list ("family_check_ipt_and_tropicos.txt")
+
+#these tips have to be manually checked and corrected in the file
