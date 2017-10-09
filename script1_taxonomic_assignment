@@ -1,12 +1,11 @@
-#script1_log
+script1_taxonomic_assignment
 
 ########################################################################################################################
 
-#updates a serem feitos:
+The main function of this script is to add family sufixes to the tip labels of the phylogenetic tree.
+This is done by querying the Internet Publishing Toolkit from the JBRJ data portal and the tropicos database.
+After the automatized process is over, a manual verification is needed.
 
-#tentar arrumar esquema de responder prompts automaticamente não: rolou
-
-#possivelmente mandar ele salvar os logs em outra pasta
 
 ########################################################################################################################
 
