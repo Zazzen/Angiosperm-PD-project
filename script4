@@ -57,3 +57,7 @@ especies_format <- paste(especies, familia.i, sep = "_")
     binded <- bind.tree(tree, tip.i, where = no) #this is the tree with the added tip
     write.tree(binded, file = "arvore_beta")} #overwriting the tree each time a tip is added
 }
+
+#The politomous tree is ready, a health checkup should be run using the script 5
+
+
