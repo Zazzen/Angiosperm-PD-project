@@ -39,6 +39,7 @@ write.tree(tree, file = "arvore_mono_fix") #this solved tree has a new name
 
 #the following commands fix this issue
 
+# !!!!! essa expresso regular está incorreta.... esta transformando familia_2 em 2, consertar!!!!!!!!!!!!
 familias_tree_nativas <- gsub(".*_", "", tree$tip.label) #list the families of the tree
 
 #the following works in a medieval way, but it works. It definitely can be improved...
